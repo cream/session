@@ -3,6 +3,7 @@
 
 import cream
 import cream.ipc
+import cream.extensions
 
 import gobject
 
@@ -68,6 +69,12 @@ class Session(cream.Module):
         gobject.timeout_add(1000, self.check_idle)
 
         self.run_autostart()
+
+        api = cream.extensions.ExtensionInterface({
+            })
+
+        self.extensions = cream.extensions.ExtensionManager([os.path.join(self._base_path, 'extensions')], api)
+        self.extensions.load('39e9d23ccb021e3829cf117f2d117b2d13722efe0271c5bb59b26780efee4ef4')
 
 
     def run_autostart(self):

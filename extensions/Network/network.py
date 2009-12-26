@@ -27,6 +27,8 @@ KNOWN_MANAGERS = {
     'org.freedesktop.NetworkManager': backends.NetworkManager
     }
 
+STATES = ['unknown', 'connected', 'disconnected']
+
 @cream.extensions.register
 class Network(cream.extensions.Extension):
 

@@ -22,6 +22,7 @@ import dbus
 import cream.extensions
 
 import backends
+from states import *
 
 KNOWN_MANAGERS = {
     'org.freedesktop.NetworkManager': backends.NetworkManager

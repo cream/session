@@ -89,7 +89,7 @@ class Session(cream.Module):
             })
 
         self.extensions = cream.extensions.ExtensionManager([os.path.join(self._base_path, 'extensions')], api)
-        self.extensions.load('39e9d23ccb021e3829cf117f2d117b2d13722efe0271c5bb59b26780efee4ef4')
+        self.extensions.load_by_name('Network')
 
 
     def run_autostart(self):

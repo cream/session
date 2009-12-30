@@ -19,6 +19,14 @@
 import gobject
 import dbus
 
+from states import *
+
+NM_STATE_UNKNOWN = 0
+NM_STATE_ASLEEP = 1
+NM_STATE_CONNECTING = 2
+NM_STATE_CONNECTED = 3
+NM_STATE_DISCONNECTED = 4
+
 class Manager(gobject.GObject):
 
     __gtype_name__ = 'Manager'
@@ -54,12 +62,18 @@ class NetworkManager(Manager):
         self.bus = dbus.SystemBus()
         self.nm = self.bus.get_object(self.bus_name, self.object_path)
 
-        self.state = self.nm.state()
+        self._set_state(self.nm.state())
 
         self.nm.connect_to_signal('StateChanged', self._set_state)
 
 
     def _set_state(self, state):
 
-        self.state = state
-        self.emit('state-changed', state)
+        if state in [NM_STATE_DISCONNECTED, NM_STATE_CONNECTING, NM_STATE_ASLEEP]:
+            self.state = STATE_DISCONNECTED
+        elif state == NM_STATE_CONNECTED:
+            self.state = STATE_CONNECTED
+        else:
+            self.state = STATE_UNKNOWN
+
+        self.emit('state-changed', self.state)

@@ -16,16 +16,16 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA 02110-1301, USA.
 
+import ctypes
+import os
+import subprocess
+
+import gobject
+from xdg import DesktopEntry
+
 import cream
 import cream.ipc
 import cream.extensions
-
-import gobject
-
-import ctypes, os
-
-from xdg import DesktopEntry
-import subprocess
 
 IDLE_TIME = 5
 

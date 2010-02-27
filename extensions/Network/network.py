@@ -20,6 +20,7 @@ import gobject
 import dbus
 
 import cream.extensions
+import cream.ipc
 
 import backends
 from states import *
@@ -31,9 +32,8 @@ KNOWN_MANAGERS = {
 STATES = ['unknown', 'connected', 'disconnected']
 
 @cream.extensions.register
-class Network(cream.extensions.Extension):
+class Network(cream.extensions.Extension, cream.ipc.Object):
 
-    __ipc_domain__ = 'org.cream.session.network'
     __ipc_signals__ = {
         'state_changed': 's'
         }
@@ -41,6 +41,11 @@ class Network(cream.extensions.Extension):
     def __init__(self, *args):
 
         cream.extensions.Extension.__init__(self, *args)
+
+        cream.ipc.Object.__init__(self,
+            'org.cream.session',
+            '/org/cream/session/network'
+        )
 
         self.system_bus = dbus.SystemBus()
 

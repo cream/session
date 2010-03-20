@@ -19,8 +19,11 @@
 import ctypes
 import os
 import subprocess
+import thread
+import signal
 
 import gobject
+import gtk
 from xdg import DesktopEntry
 
 import cream
@@ -98,12 +101,28 @@ class Subprocess(gobject.GObject):
     def run(self):
         """ Run the process. """
 
-        self.process = subprocess.Popen(self.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        self.pid = self.process.pid
-        self.stdout = self.process.stdout
-        self.stderr = self.process.stderr
+        #self.process = subprocess.Popen(self.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
 
-        gobject.child_watch_add(self.pid, lambda pid, condition: self.emit('exited', pid, condition))
+        #self.pid = self.process.pid
+        #self.stdout = self.process.stdout
+        #self.stderr = self.process.stderr
+
+        process_data = gobject.spawn_async(self.command,
+                flags=gobject.SPAWN_SEARCH_PATH|gobject.SPAWN_DO_NOT_REAP_CHILD,
+                standard_output=True,
+                standard_error=True
+                )
+
+        self.pid = process_data[0]
+        self.stdout = os.fdopen(process_data[2])
+        self.stderr = os.fdopen(process_data[3])
+
+        self.watch = gobject.child_watch_add(self.pid, self.exited_cb)
+
+
+    def exited_cb(self, pid, condition):
+
+        self.emit('exited', pid, condition)
 
 
 class Session(cream.Module, cream.ipc.Object):
@@ -158,7 +177,7 @@ class Session(cream.Module, cream.ipc.Object):
         """ Shows a given log message. """
 
         builder = gtk.Builder()
-        builder.add_from_file('log_dialog.glade')
+        builder.add_from_file(os.path.join(self.meta['path'], 'log_dialog.glade'))
         dialog = builder.get_object('dialog')
         buffer = builder.get_object('buffer')
 
@@ -228,5 +247,5 @@ class Session(cream.Module, cream.ipc.Object):
 
 if __name__ == '__main__':
     session = Session()
-    session.main()
+    session.main(enable_threads=False)
     

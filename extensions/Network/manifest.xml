@@ -1,0 +1,8 @@
+<?xml version="1.0" ?>
+<manifest namespace="org.cream" version="0.0.5">
+    <component name="Network" id=".session.Network" version="0.1" type=".Extension" entry="./network.py">
+        <license title="GPL" version="3+" />
+
+        <author name="Sebastian Billaudelle" mail="stein@cream-project.org" type="developer" />
+    </component>
+</manifest>

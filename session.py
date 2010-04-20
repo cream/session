@@ -151,7 +151,7 @@ class Session(cream.Module, cream.ipc.Object):
         api = cream.extensions.ExtensionInterface({
             })
 
-        self.extensions = cream.extensions.ExtensionManager([os.path.join(self.meta['path'], 'extensions')], api)
+        self.extensions = cream.extensions.ExtensionManager([os.path.join(self.context.working_directory, 'extensions')], api)
         self.extensions.load_by_name('Network')
 
 

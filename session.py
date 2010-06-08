@@ -16,11 +16,13 @@
 # Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston,
 # MA 02110-1301, USA.
 
-import ctypes
 import os
 import subprocess
 import thread
 import signal
+
+import ooxcb
+from ooxcb.protocol import xproto, screensaver
 
 import gobject
 import gtk
@@ -36,34 +38,15 @@ STATUS_IDLE = 'idle'
 STATUS_ACTIVE = 'active'
 
 
-class XScreenSaverInfo(ctypes.Structure):
-    """ typedef struct { ... } XScreenSaverInfo; """
-
-    _fields_ = [('window',      ctypes.c_ulong), # screen saver window
-                ('state',       ctypes.c_int),   # off,on,disabled
-                ('kind',        ctypes.c_int),   # blanked,internal,external
-                ('since',       ctypes.c_ulong), # milliseconds
-                ('idle',        ctypes.c_ulong), # milliseconds
-                ('event_mask',  ctypes.c_ulong)] # events
-
-
 class XScreenSaverSession(object):
 
     """ Wrapper for the XScreenSaverSession. """
 
     def __init__( self):
 
-        self.xlib = ctypes.cdll.LoadLibrary( 'libX11.so')
-        self.dpy = self.xlib.XOpenDisplay( os.environ['DISPLAY'])
+        self.connection = ooxcb.connect()
 
-        if not self.dpy:
-            raise Exception('Cannot open display')
-
-        self.root = self.xlib.XDefaultRootWindow( self.dpy)
-        self.xss = ctypes.cdll.LoadLibrary( 'libXss.so.1')
-        self.xss.XScreenSaverAllocInfo.restype = ctypes.POINTER(XScreenSaverInfo)
-        self.xss_info = self.xss.XScreenSaverAllocInfo()
-
+        self.root = self.connection.setup.roots[self.connection.pref_screen].root
 
     def get_idle( self):
         """
@@ -72,9 +55,8 @@ class XScreenSaverSession(object):
         :returns: Time since last mouse/keyboard activity.
         :rtype: `int`
         """
-
-        self.xss.XScreenSaverQueryInfo( self.dpy, self.root, self.xss_info)
-        return int(round(float(self.xss_info.contents.idle) / 1000, 1))
+        reply = screensaver.DrawableMixin.query_info(self.root).reply()
+        return int(round(float(reply.ms_since_user_input) / 1000, 1))
 
 
 class Subprocess(gobject.GObject):

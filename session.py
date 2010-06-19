@@ -30,7 +30,6 @@ from xdg import DesktopEntry
 
 import cream
 import cream.ipc
-import cream.extensions
 
 IDLE_TIME = 5
 
@@ -130,12 +129,6 @@ class Session(cream.Module, cream.ipc.Object):
 
         self.run_autostart()
 
-        api = cream.extensions.ExtensionInterface({
-            })
-
-        self.extensions = cream.extensions.ExtensionManager([os.path.join(self.context.working_directory, 'extensions')], api)
-        self.extensions.load_by_name('Network')
-
 
     def run_autostart(self):
         """ Run the autostart. """
@@ -230,4 +223,4 @@ class Session(cream.Module, cream.ipc.Object):
 if __name__ == '__main__':
     session = Session()
     session.main(enable_threads=False)
-    
+

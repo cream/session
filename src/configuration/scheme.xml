@@ -1,0 +1,5 @@
+<configuration>
+    <modules type="list" static="true" hidden="true">
+        <item type="str">org.cream.Melange</item>
+    </modules>
+</configuration>

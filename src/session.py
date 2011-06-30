@@ -30,80 +30,45 @@ from xdg import DesktopEntry
 
 import cream
 import cream.ipc
+import cream.util.subprocess
 
 IDLE_TIME = 5
 
 STATUS_IDLE = 'idle'
 STATUS_ACTIVE = 'active'
 
+class UPower(object):
+    
+    def __init__(self):
+        self.service = cream.ipc.get_object('org.freedesktop.UPower', '/org/freedesktop/UPower', interface='org.freedesktop.UPower', bus=cream.ipc.SYSTEM_BUS)
+    
+    def suspend(self):
+        self.service.Suspend()
+    
+    def hibernate(self):
+        self.service.Hibernate()
+
 
 class XScreenSaverSession(object):
 
     """ Wrapper for the XScreenSaverSession. """
 
-    def __init__( self):
+    def __init__(self):
 
         self.connection = ooxcb.connect()
-
         self.root = self.connection.setup.roots[self.connection.pref_screen].root
 
-    def get_idle( self):
+
+    def get_idle(self):
         """
         Get the time since the last mouse movement.
 
         :returns: Time since last mouse/keyboard activity.
         :rtype: `int`
         """
+
         reply = screensaver.DrawableMixin.query_info(self.root).reply()
         return int(round(float(reply.ms_since_user_input) / 1000, 1))
-
-
-class Subprocess(gobject.GObject):
-    """ API for handling child processes of the Cream Session. """
-
-    __gtype_name__ = 'Subprocess'
-    __gsignals__ = {
-        'exited': (gobject.SIGNAL_RUN_LAST, gobject.TYPE_NONE, (gobject.TYPE_INT, gobject.TYPE_INT))
-        }
-
-    def __init__(self, command, name=None):
-
-        gobject.GObject.__init__(self)
-
-        self.process = None
-        self.pid = None
-        self.stdout = None
-        self.stderr = None
-
-        self.command = command
-        self.name = name
-
-
-    def run(self):
-        """ Run the process. """
-
-        #self.process = subprocess.Popen(self.command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-
-        #self.pid = self.process.pid
-        #self.stdout = self.process.stdout
-        #self.stderr = self.process.stderr
-
-        process_data = gobject.spawn_async(self.command,
-                flags=gobject.SPAWN_SEARCH_PATH|gobject.SPAWN_DO_NOT_REAP_CHILD,
-                standard_output=True,
-                standard_error=True
-                )
-
-        self.pid = process_data[0]
-        self.stdout = os.fdopen(process_data[2])
-        self.stderr = os.fdopen(process_data[3])
-
-        self.watch = gobject.child_watch_add(self.pid, self.exited_cb)
-
-
-    def exited_cb(self, pid, condition):
-
-        self.emit('exited', pid, condition)
 
 
 class Session(cream.Module, cream.ipc.Object):
@@ -115,19 +80,37 @@ class Session(cream.Module, cream.ipc.Object):
 
     def __init__(self):
 
-        cream.Module.__init__(self)
+        cream.Module.__init__(self, 'org.cream.Session')
 
         cream.ipc.Object.__init__(self,
-            'org.cream.session',
-            '/org/cream/session'
+            'org.cream.Session',
+            '/org/cream/Session'
         )
 
         self.status = STATUS_ACTIVE
+        self.upower = UPower()
 
         self.screensaver = XScreenSaverSession()
         gobject.timeout_add(1000, self.check_idle)
 
+        self.load_modules()
         self.run_autostart()
+        
+        
+    def load_modules(self):
+    
+        modules = cream.manifest.ManifestDB([
+            '/usr/share/cream/'
+        ], 'org.cream.Module')
+    
+        for mod in self.config.modules:
+            self.messages.info("Loading '{0}'…".format(mod))
+            
+            mnfst = list(modules.get(id=mod))[0]
+            exec_path = mnfst['exec']
+            p = cream.util.subprocess.Subprocess(exec_path.split(' '), mnfst['name'])
+            p.connect('exited', self.child_exited)
+            p.run()
 
 
     def run_autostart(self):
@@ -135,7 +118,7 @@ class Session(cream.Module, cream.ipc.Object):
 
         autostart_dir = os.path.expanduser('~/.config/autostart/')
 
-        self.messages.notice("Running autostart...")
+        self.messages.info("Running autostart...")
 
         for i in os.listdir(autostart_dir):
             path = os.path.join(autostart_dir, i)
@@ -143,49 +126,46 @@ class Session(cream.Module, cream.ipc.Object):
                 d = DesktopEntry.DesktopEntry(path)
                 exec_path = d.get('Exec')
                 self.messages.debug("Launching '{0}'...".format(d.get('Name')))
-                p = Subprocess(exec_path.split(' '), d.get('Name'))
+                p = cream.util.subprocess.Subprocess(exec_path.split(' '), d.get('Name'))
                 p.connect('exited', self.child_exited)
                 p.run()
 
 
-    def show_log_dialog(self, button, message):
-        """ Shows a given log message. """
-
-        builder = gtk.Builder()
-        builder.add_from_file(os.path.join(self.meta['path'], 'log_dialog.glade'))
-        dialog = builder.get_object('dialog')
-        buffer = builder.get_object('buffer')
-
-        buffer.set_text(message)
-        dialog.run()
-        dialog.destroy()
-
-
     def child_exited(self, process, pid, condition):
         """ This is called when a child process exits. """
+        
+        self.messages.debug("Child '{0}' exited with condition '{1}'…".format(process.name, condition))
 
         if condition != 0:
             if process.name:
-                m = '<span size="x-large" weight="bold">Sorry! The application <i>{0}</i> exited unexpectedly.</span>'.format(process.name)
+                title = '<span size="large" weight="bold">Sorry! The application <i>{0}</i> exited unexpectedly.</span>'.format(process.name)
             else:
-                m = '<span size="x-large" weight="bold">Sorry! An application exited unexpectedly.</span>'
-            m += "\nThis is something that should not happen. You may want to take a look at the error log if you would like to see some hints why this application crashed."
+                title = '<span size="large" weight="bold">Sorry! An application exited unexpectedly.</span>'
+            
+            description = "Normally, this points to an error in an application or faulty configuration. You may want to file a bug or contact the maintainer of that application."
 
-            dialog = gtk.MessageDialog(type=gtk.MESSAGE_ERROR)
-            dialog.set_markup(m)
+            interface = gtk.Builder()
+            interface.add_from_file(os.path.join(self.context.get_path(), 'data', 'interface.ui'))
+            
+            dialog = interface.get_object('crash_dialog')
+            title_label = interface.get_object('title')
+            description_label = interface.get_object('description')
+            log_view = interface.get_object('log_view')
+            restart_button = interface.get_object('restart_button')
+            
+            restart_button_label = restart_button.get_child().get_child().get_children()[1]
+            restart_button_label.set_text("Restart Application")
+            
+            title_label.set_label(title)
+            description_label.set_label(description)
 
-            action_area = dialog.get_action_area()
-            button = gtk.Button()
-            button.set_label("View Log")
-            button.set_image(gtk.image_new_from_stock(gtk.STOCK_DIALOG_ERROR, gtk.ICON_SIZE_BUTTON))
-            button.connect('clicked', self.show_log_dialog, process.stderr.read())
-            action_area.pack_start(button, True, True, 0)
-            action_area.show_all()
-
-            dialog.add_button(gtk.STOCK_CLOSE, gtk.RESPONSE_CLOSE)
-
-            dialog.run()
+            log_view.get_buffer().set_text(process.stderr.read())
+            
+            response = dialog.run()
             dialog.destroy()
+            
+            if response == 1:
+                process.run()
 
 
     def check_idle(self):
@@ -206,6 +186,24 @@ class Session(cream.Module, cream.ipc.Object):
             gobject.timeout_add(1000, self.check_idle)
         elif self.status == STATUS_IDLE:
             gobject.timeout_add(100, self.check_idle)
+            
+
+    @cream.ipc.method('', '')
+    def suspend(self):
+        def suspend_cb():
+            self.upower.suspend()
+
+        self.messages.debug("Suspending…")        
+        gobject.idle_add(suspend_cb)
+            
+
+    @cream.ipc.method('', '')
+    def hibernate(self):
+        def hibernate_cb():
+            self.upower.hibernate()
+
+        self.messages.debug("Hibernating…")        
+        gobject.idle_add(hibernate_cb)
 
 
     @cream.ipc.method('', 's')

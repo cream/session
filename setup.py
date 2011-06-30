@@ -50,5 +50,5 @@ setup(
     url = 'http://github.com/cream/session',
     data_files = data_files,
     cmdclass={'install_scripts': post_install},
-    scripts = ['src/session.py']
+    scripts = ['src/cream-session.py']
 )
